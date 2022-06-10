@@ -1,0 +1,6 @@
+apiVersion: claim.seung.com/v1alpha1
+kind: ClusterClaim
+metadata:
+  name: clusterclaim-sample
+spec:
+  # TODO(user): Add fields here

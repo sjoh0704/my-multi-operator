@@ -1,0 +1,24 @@
+# permissions for end users to edit clusterclaims.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: clusterclaim-editor-role
+rules:
+- apiGroups:
+  - claim.seung.com
+  resources:
+  - clusterclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - claim.seung.com
+  resources:
+  - clusterclaims/status
+  verbs:
+  - get
