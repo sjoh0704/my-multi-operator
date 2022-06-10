@@ -28,30 +28,76 @@ type ClusterClaimSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of ClusterClaim. Edit clusterclaim_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// +kubebuilder:validation:MaxLength=15
+	// +kubebuilder:validation:MinLength=10
+	Test string `json:"test"`
+
+	// +kubebuilder:validation:Required
+	// The name of the cluster to be created
+	ClusterName string `json:"clusterName"`
+
+	// +kubebuilder:validation:Required
+	// The version of kubernetes
+	Version string `json:"version"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum:=AWS;vSphere
+	// The type of provider
+	Provider string `json:"provider"`
+
+	// +kubebuilder:validation:Required
+	// The number of master node
+	MasterNum int `json:"masterNum"`
+
+	// +kubebuilder:validation:Required
+	// The number of worker node
+	WorkerNum int `json:"workerNum"`
+
+	// Provider Aws Spec
+	ProviderAwsSpec AwsClaimSpec `json:"providerAwsSpec,omitempty"`
+
+	// Provider vSphere Spec
+	// ProviderVsphereSpec VsphereClaimSpec `json:"providerVsphereSpec,omitempty"`
 }
 
-// ClusterClaimStatus defines the observed state of ClusterClaim
+type AwsClaimSpec struct {
+	// The ssh key info to access VM
+	SshKey string `json:"sshKey,omitempty"`
+	// +kubebuilder:validation:Enum:=ap-northeast-1;ap-northeast-2;ap-south-1;ap-southeast-1;ap-northeast-2;ca-central-1;eu-central-1;eu-west-1;eu-west-2;eu-west-3;sa-east-1;us-east-1;us-east-2;us-west-1;us-west-2
+	// The region where VM is working
+	Region string `json:"region,omitempty"`
+	// The type of VM for master node. Example: m4.xlarge. see: https://aws.amazon.com/ec2/instance-types
+	MasterType string `json:"masterType,omitempty"`
+	// The type of VM for master node. Example: m4.xlarge. see: https://aws.amazon.com/ec2/instance-types
+	WorkerType string `json:"workerType,omitempty"`
+}
+
 type ClusterClaimStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Test    string `json:"test"`
+	Message string `json:"message,omitempty" protobuf:"bytes,2,opt,name=message"`
+	Reason  string `json:"reason,omitempty" protobuf:"bytes,3,opt,name=reason"`
+
+	// +kubebuilder:validation:Enum=Awaiting;Admitted;Approved;Rejected;Error;ClusterDeleted;
+	Phase string `json:"phase,omitempty" protobuf:"bytes,4,opt,name=phase"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:path=clusterclaims,shortName=cc,scope=Namespaced
+// +kubebuilder:printcolumn:name="Test",type=string,JSONPath=`.status.test`
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.reason`
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // ClusterClaim is the Schema for the clusterclaims API
 type ClusterClaim struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ClusterClaimSpec   `json:"spec,omitempty"`
+	Spec   ClusterClaimSpec   `json:"spec"`
 	Status ClusterClaimStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
-
 // ClusterClaimList contains a list of ClusterClaim
 type ClusterClaimList struct {
 	metav1.TypeMeta `json:",inline"`

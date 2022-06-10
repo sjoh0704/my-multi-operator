@@ -1,0 +1,149 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.8.0
+  creationTimestamp: null
+  name: clusterclaims.claim.seung.com
+spec:
+  group: claim.seung.com
+  names:
+    kind: ClusterClaim
+    listKind: ClusterClaimList
+    plural: clusterclaims
+    shortNames:
+    - cc
+    singular: clusterclaim
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.test
+      name: Test
+      type: string
+    - jsonPath: .status.phase
+      name: Status
+      type: string
+    - jsonPath: .status.reason
+      name: Reason
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ClusterClaim is the Schema for the clusterclaims API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ClusterClaimSpec defines the desired state of ClusterClaim
+            properties:
+              clusterName:
+                description: The name of the cluster to be created
+                type: string
+              masterNum:
+                description: The number of master node
+                type: integer
+              provider:
+                description: The type of provider
+                enum:
+                - AWS
+                - vSphere
+                type: string
+              providerAwsSpec:
+                description: Provider Aws Spec
+                properties:
+                  masterType:
+                    description: 'The type of VM for master node. Example: m4.xlarge.
+                      see: https://aws.amazon.com/ec2/instance-types'
+                    type: string
+                  region:
+                    description: The region where VM is working
+                    enum:
+                    - ap-northeast-1
+                    - ap-northeast-2
+                    - ap-south-1
+                    - ap-southeast-1
+                    - ap-northeast-2
+                    - ca-central-1
+                    - eu-central-1
+                    - eu-west-1
+                    - eu-west-2
+                    - eu-west-3
+                    - sa-east-1
+                    - us-east-1
+                    - us-east-2
+                    - us-west-1
+                    - us-west-2
+                    type: string
+                  sshKey:
+                    description: The ssh key info to access VM
+                    type: string
+                  workerType:
+                    description: 'The type of VM for master node. Example: m4.xlarge.
+                      see: https://aws.amazon.com/ec2/instance-types'
+                    type: string
+                type: object
+              test:
+                maxLength: 15
+                minLength: 10
+                type: string
+              version:
+                description: The version of kubernetes
+                type: string
+              workerNum:
+                description: The number of worker node
+                type: integer
+            required:
+            - clusterName
+            - masterNum
+            - provider
+            - test
+            - version
+            - workerNum
+            type: object
+          status:
+            properties:
+              message:
+                type: string
+              phase:
+                enum:
+                - Awaiting
+                - Admitted
+                - Approved
+                - Rejected
+                - Error
+                - ClusterDeleted
+                type: string
+              reason:
+                type: string
+              test:
+                type: string
+            required:
+            - test
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

@@ -19,10 +19,10 @@ package controllers
 import (
 	"context"
 
+	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	claimv1alpha1 "github.com/sjoh0704/my-multi-operator/api/v1alpha1"
 )
@@ -30,6 +30,7 @@ import (
 // ClusterClaimReconciler reconciles a ClusterClaim object
 type ClusterClaimReconciler struct {
 	client.Client
+	Log    logr.Logger
 	Scheme *runtime.Scheme
 }
 
@@ -47,7 +48,11 @@ type ClusterClaimReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.2/pkg/reconcile
 func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	_ = context.Background()
+
+	// log := r.Log.WithValues("cluster", req.NamespacedName)
+
+	// fmt.Println(log)
 
 	// TODO(user): your logic here
 
