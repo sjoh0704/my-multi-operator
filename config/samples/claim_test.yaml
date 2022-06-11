@@ -3,9 +3,9 @@ kind: ClusterClaim
 metadata:
   name: clusterclaim-sample
 spec:
-  test: "This is test"
+  test: "This is a test"
   clusterName: "test"
   version: "1.19"
   provider: "AWS"
   masterNum: 3
-  workerNum: 2
+  workerNum: 3

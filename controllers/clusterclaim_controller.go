@@ -18,12 +18,18 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	// "sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/sjoh0704/my-multi-operator/api/v1alpha1"
 	claimv1alpha1 "github.com/sjoh0704/my-multi-operator/api/v1alpha1"
 )
 
@@ -33,6 +39,8 @@ type ClusterClaimReconciler struct {
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 }
+
+var AutoAdmit bool
 
 //+kubebuilder:rbac:groups=claim.seung.com,resources=clusterclaims,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=claim.seung.com,resources=clusterclaims/status,verbs=get;update;patch
@@ -45,23 +53,70 @@ type ClusterClaimReconciler struct {
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
+
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.2/pkg/reconcile
 func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	fmt.Println("reconcile 호출!")
+
+	log := r.Log.WithValues("ClusterClaim", req.NamespacedName)
+
 	_ = context.Background()
+	//get clusterclaim
+	clusterClaim := new(v1alpha1.ClusterClaim)
+	err := r.Get(ctx, req.NamespacedName, clusterClaim)
+	if errors.IsNotFound(err) { // 에러가 없으면
+		log.Info("ClusterClaim resource not found. Ignoring since object must be deleted")
+		return ctrl.Result{}, nil
+	} else if err != nil { // 에러가 있으면 끝낸다.
+		log.Error(err, "Failed to get ClusterClaim")
+		return ctrl.Result{}, err
+	}
+	log.Info("ClusterClaim resource found")
 
-	// log := r.Log.WithValues("cluster", req.NamespacedName)
+	if AutoAdmit == false {
+		if clusterClaim.Status.Phase == "" {
+			clusterClaim.Status.Phase = "Awaiting"
+			clusterClaim.Status.Reason = "waiting for amdin approval"
+			clusterClaim.Status.Test = "안녕하세요 테스트예요"
+			err := r.Status().Update(ctx, clusterClaim)
+			if err != nil {
+				log.Error(err, "Failed to update ClusterClaim Status")
+				return ctrl.Result{}, err
+			}
 
-	// fmt.Println(log)
-
-	// TODO(user): your logic here
-
+		}
+	}
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterClaimReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&claimv1alpha1.ClusterClaim{}).
+
+	log := r.Log
+
+	err := ctrl.NewControllerManagedBy(mgr).
+		For(new(claimv1alpha1.ClusterClaim)).
+		WithEventFilter(
+			predicate.Funcs{
+				CreateFunc: func(ce event.CreateEvent) bool {
+					log.Info("생성 이벤트 발생")
+					return true
+				},
+				UpdateFunc: func(ue event.UpdateEvent) bool {
+					log.Info("업데이트 이벤트 발생")
+					return true
+				},
+				DeleteFunc: func(de event.DeleteEvent) bool {
+					log.Info("삭제 이벤트 발생")
+					return false
+				},
+				GenericFunc: func(ge event.GenericEvent) bool {
+					log.Info("제네릭 이벤트 발생")
+					return false
+				},
+			},
+		).
 		Complete(r)
+	return err
 }
