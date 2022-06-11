@@ -31,8 +31,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	claimv1alpha1 "github.com/sjoh0704/my-multi-operator/api/v1alpha1"
-	"github.com/sjoh0704/my-multi-operator/controllers"
+	claimv1alpha1 "github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
+	clusterv1alpha1 "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
+	claimcontrollers "github.com/sjoh0704/my-multi-operator/controllers/claim"
+	clustercontrollers "github.com/sjoh0704/my-multi-operator/controllers/cluster"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -45,6 +47,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(claimv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(clusterv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -78,12 +81,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.ClusterClaimReconciler{
+	if err = (&claimcontrollers.ClusterClaimReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("ClusterClaim"),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterClaim")
+		os.Exit(1)
+	}
+	if err = (&clustercontrollers.ClusterManagerReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("ClusterManager"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterManager")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

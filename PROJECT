@@ -1,6 +1,7 @@
 domain: seung.com
 layout:
 - go.kubebuilder.io/v3
+multigroup: true
 plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
@@ -15,5 +16,14 @@ resources:
   group: claim
   kind: ClusterClaim
   path: github.com/sjoh0704/my-multi-operator/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: seung.com
+  group: cluster
+  kind: ClusterManager
+  path: github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1
   version: v1alpha1
 version: "3"

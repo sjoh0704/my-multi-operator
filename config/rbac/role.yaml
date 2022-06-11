@@ -31,3 +31,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - cluster.seung.com
+  resources:
+  - clustermanagers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.seung.com
+  resources:
+  - clustermanagers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - cluster.seung.com
+  resources:
+  - clustermanagers/status
+  verbs:
+  - get
+  - patch
+  - update

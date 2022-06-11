@@ -1,0 +1,6 @@
+apiVersion: cluster.seung.com/v1alpha1
+kind: ClusterManager
+metadata:
+  name: clustermanager-sample
+spec:
+  # TODO(user): Add fields here

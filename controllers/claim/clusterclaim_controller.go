@@ -29,8 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	// "sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/sjoh0704/my-multi-operator/api/v1alpha1"
-	claimv1alpha1 "github.com/sjoh0704/my-multi-operator/api/v1alpha1"
+	"github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
 )
 
 // ClusterClaimReconciler reconciles a ClusterClaim object
@@ -96,7 +95,7 @@ func (r *ClusterClaimReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	log := r.Log
 
 	err := ctrl.NewControllerManagedBy(mgr).
-		For(new(claimv1alpha1.ClusterClaim)).
+		For(new(v1alpha1.ClusterClaim)).
 		WithEventFilter(
 			predicate.Funcs{
 				CreateFunc: func(ce event.CreateEvent) bool {
