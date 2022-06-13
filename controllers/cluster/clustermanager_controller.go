@@ -18,14 +18,28 @@ package cluster
 
 import (
 	"context"
-
-	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
 	clusterv1alpha1 "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
+
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/cluster-api/util/patch"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+)
+
+const (
+	requeueAfter10Seconds = 10 * time.Second
+	requeueAfter20Seconds = 20 * time.Second
+	requeueAfter30Seconds = 30 * time.Second
+	requeueAfter1Miniute  = 1 * time.Minute
 )
 
 // ClusterManagerReconciler reconciles a ClusterManager object
@@ -35,23 +49,48 @@ type ClusterManagerReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=cluster.seung.com,resources=clustermanagers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=cluster.seung.com,resources=clustermanagers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=cluster.seung.com,resources=clustermanagers/finalizers,verbs=update
+// +kubebuilder:rbac:groups=cluster.seung.com,resources=clustermanagers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cluster.seung.com,resources=clustermanagers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=cluster.seung.com,resources=clustermanagers/finalizers,verbs=update
+// +kubebuilder:rbac:groups=cluster.x-k8s.zio,resources=clusters,verbs=get;list;watch
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machinedeployments,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machinedeployments/status,verbs=get;list;patch;update;watch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings;roles;rolebindings,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups=controlplane.cluster.x-k8s.io,resources=kubeadmcontrolplanes,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups=controlplane.cluster.x-k8s.io,resources=kubeadmcontrolplanes/status,verbs=get;list;patch;update;watch
+// +kubebuilder:rbac:groups=servicecatalog.k8s.io,resources=serviceinstances,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups=servicecatalog.k8s.io,resources=serviceinstances/status,verbs=get;list;patch;update;watch
+// +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups="",resources=services;endpoints,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups=traefik.containo.us,resources=middlewares,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=create;delete;get;list;patch;update;watch
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the ClusterManager object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.2/pkg/reconcile
 func (r *ClusterManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
+	log := r.Log.WithValues("clustermanager", req.NamespacedName)
 
-	log.Log.Info("--------------------------------------------------")
+	clusterManager := new(clusterv1alpha1.ClusterManager)
+	err := r.Get(context.TODO(), req.NamespacedName, clusterManager)
+	if errors.IsNotFound(err) {
+		log.Info("clusterManager 리소스가 없습니다.")
+		return ctrl.Result{}, nil
+	} else if err != nil {
+		log.Error(err, "clusterManager 리소스를 가져오는 실패했습니다.")
+		return ctrl.Result{}, err
+	}
+	log.Info("clusterManager 리소스를 찾았습니다.")
+
+	patchHelper, _ := patch.NewHelper(clusterManager, r.Client)
+
+	clusterManager.Status.Phase = string(clusterv1alpha1.ClusterManagerPhasePending)
+
+	err = patchHelper.Patch(context.TODO(), clusterManager)
+	if err != nil {
+		log.Error(err, "ClusterManager patch error")
+	}
+
+	defer r.reconcilePhase(clusterManager)
 
 	// TODO(user): your logic here
 
@@ -60,7 +99,59 @@ func (r *ClusterManagerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	controller, err := ctrl.NewControllerManagedBy(mgr).
 		For(&clusterv1alpha1.ClusterManager{}).
-		Complete(r)
+		WithEventFilter(predicate.Funcs{
+			CreateFunc: func(ce event.CreateEvent) bool {
+				return true
+			},
+			DeleteFunc: func(de event.DeleteEvent) bool {
+				return true
+			},
+			UpdateFunc: func(ue event.UpdateEvent) bool {
+				return true
+			},
+			GenericFunc: func(ge event.GenericEvent) bool {
+				return true
+			},
+		}).Build(r)
+
+	controller.Watch(
+		&source.Kind{Type: &v1alpha1.ClusterClaim{}},
+		handler.EnqueueRequestsFromMapFunc(r.requeueCreateClusterManager),
+		predicate.Funcs{
+			UpdateFunc: func(ue event.UpdateEvent) bool {
+				return false
+			},
+			CreateFunc: func(ce event.CreateEvent) bool {
+				return true
+			},
+			DeleteFunc: func(de event.DeleteEvent) bool {
+				return false
+			},
+			GenericFunc: func(ge event.GenericEvent) bool {
+				return false
+			},
+		})
+
+	return err
+}
+
+func (r *ClusterManagerReconciler) reconcilePhase(clusterManager *clusterv1alpha1.ClusterManager) {
+	if clusterManager.Status.Phase == "" {
+		if clusterManager.Labels[clusterv1alpha1.LabelKeyClmClusterType] == clusterv1alpha1.ClusterTypeRegistered {
+			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistering)
+		} else {
+			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistered)
+		}
+	}
+
+	if clusterManager.Status.Ready {
+		if clusterManager.Labels[clusterv1alpha1.LabelKeyClmClusterType] == clusterv1alpha1.ClusterTypeRegistered {
+			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistered)
+		} else {
+			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseProvisioned)
+		}
+	}
+
 }

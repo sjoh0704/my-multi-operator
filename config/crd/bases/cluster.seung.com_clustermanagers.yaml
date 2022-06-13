@@ -15,7 +15,40 @@ spec:
     singular: clustermanager
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: provider
+      jsonPath: .spec.provider
+      name: Provider
+      type: string
+    - description: k8s version
+      jsonPath: .spec.version
+      name: Version
+      type: string
+    - description: is running
+      jsonPath: .status.ready
+      name: Ready
+      type: string
+    - description: replica number of master
+      jsonPath: .spec.masterNum
+      name: MasterNum
+      type: string
+    - description: running of master
+      jsonPath: .status.masterRun
+      name: MasterRun
+      type: string
+    - description: replica number of worker
+      jsonPath: .spec.workerNum
+      name: WorkerNum
+      type: string
+    - description: running of worker
+      jsonPath: .status.workerRun
+      name: WorkerRun
+      type: string
+    - description: cluster status phase
+      jsonPath: .status.phase
+      name: Phase
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: ClusterManager is the Schema for the clustermanagers API
@@ -25,6 +58,21 @@ spec:
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
+          awsSpec:
+            properties:
+              masterType:
+                description: 사용할 master type을 명시
+                type: string
+              region:
+                description: 사용할 Region을 명시
+                type: string
+              sshKey:
+                description: 사용할 sshkey을 명시
+                type: string
+              workerType:
+                description: 사용할 worker type을 명시
+                type: string
+            type: object
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
@@ -35,13 +83,110 @@ spec:
           spec:
             description: ClusterManagerSpec defines the desired state of ClusterManager
             properties:
-              foo:
-                description: Foo is an example field of ClusterManager. Edit clustermanager_types.go
-                  to remove/update
+              masterNum:
+                description: Master node의 갯수
+                type: integer
+              provider:
+                description: 사용할 cloud provider를 명시합니다.
                 type: string
+              version:
+                description: K8S 버전을 명시합니다.
+                type: string
+              workerNum:
+                description: Worker node의 갯수
+                type: integer
+            required:
+            - masterNum
+            - provider
+            - version
+            - workerNum
             type: object
           status:
             description: ClusterManagerStatus defines the observed state of ClusterManager
+            properties:
+              argoReady:
+                type: boolean
+              authClientReady:
+                type: boolean
+              controlPlaneEndpoint:
+                type: string
+              controlPlaneReady:
+                type: boolean
+              gatewayReady:
+                type: boolean
+              hyperregistryOidcReady:
+                type: boolean
+              masterRun:
+                type: integer
+              nodeInfo:
+                items:
+                  description: NodeSystemInfo is a set of ids/uuids to uniquely identify
+                    the node.
+                  properties:
+                    architecture:
+                      description: The Architecture reported by the node
+                      type: string
+                    bootID:
+                      description: Boot ID reported by the node.
+                      type: string
+                    containerRuntimeVersion:
+                      description: ContainerRuntime Version reported by the node through
+                        runtime remote API (e.g. containerd://1.4.2).
+                      type: string
+                    kernelVersion:
+                      description: Kernel Version reported by the node from 'uname
+                        -r' (e.g. 3.16.0-0.bpo.4-amd64).
+                      type: string
+                    kubeProxyVersion:
+                      description: KubeProxy Version reported by the node.
+                      type: string
+                    kubeletVersion:
+                      description: Kubelet Version reported by the node.
+                      type: string
+                    machineID:
+                      description: 'MachineID reported by the node. For unique machine
+                        identification in the cluster this field is preferred. Learn
+                        more from man(5) machine-id: http://man7.org/linux/man-pages/man5/machine-id.5.html'
+                      type: string
+                    operatingSystem:
+                      description: The Operating System reported by the node
+                      type: string
+                    osImage:
+                      description: OS Image reported by the node from /etc/os-release
+                        (e.g. Debian GNU/Linux 7 (wheezy)).
+                      type: string
+                    systemUUID:
+                      description: SystemUUID reported by the node. For unique machine
+                        identification MachineID is preferred. This field is specific
+                        to Red Hat hosts https://access.redhat.com/documentation/en-us/red_hat_subscription_management/1/html/rhsm/uuid
+                      type: string
+                  required:
+                  - architecture
+                  - bootID
+                  - containerRuntimeVersion
+                  - kernelVersion
+                  - kubeProxyVersion
+                  - kubeletVersion
+                  - machineID
+                  - operatingSystem
+                  - osImage
+                  - systemUUID
+                  type: object
+                type: array
+              openSearchReady:
+                type: boolean
+              phase:
+                type: string
+              provider:
+                type: string
+              ready:
+                type: boolean
+              traefikReady:
+                type: boolean
+              version:
+                type: string
+              workerRun:
+                type: integer
             type: object
         type: object
     served: true
