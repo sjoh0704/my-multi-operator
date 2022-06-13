@@ -69,11 +69,12 @@ type ClusterManagerReconciler struct {
 func (r *ClusterManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 	log := r.Log.WithValues("clustermanager", req.NamespacedName)
+	log.Info("Reconcile 호출")
 
 	clusterManager := new(clusterv1alpha1.ClusterManager)
 	err := r.Get(context.TODO(), req.NamespacedName, clusterManager)
 	if errors.IsNotFound(err) {
-		log.Info("clusterManager 리소스가 없습니다.")
+		log.Info("clusterManager 리소스가 없습니다.", req.NamespacedName)
 		return ctrl.Result{}, nil
 	} else if err != nil {
 		log.Error(err, "clusterManager 리소스를 가져오는 실패했습니다.")
@@ -106,25 +107,35 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return true
 			},
 			DeleteFunc: func(de event.DeleteEvent) bool {
-				return true
+				return false
 			},
 			UpdateFunc: func(ue event.UpdateEvent) bool {
 				return true
 			},
 			GenericFunc: func(ge event.GenericEvent) bool {
-				return true
+				return false
 			},
 		}).Build(r)
 
 	controller.Watch(
 		&source.Kind{Type: &v1alpha1.ClusterClaim{}},
-		handler.EnqueueRequestsFromMapFunc(r.requeueCreateClusterManager),
+		handler.EnqueueRequestsFromMapFunc(r.requeueClusterManagerForClusterClaim),
 		predicate.Funcs{
 			UpdateFunc: func(ue event.UpdateEvent) bool {
-				return false
+				ccNew := ue.ObjectNew.(*v1alpha1.ClusterClaim)
+				if ccNew.Status.Phase == "Approved" {
+					return true
+				} else {
+					return false
+				}
 			},
 			CreateFunc: func(ce event.CreateEvent) bool {
-				return true
+				cc := ce.Object.(*v1alpha1.ClusterClaim)
+				if cc.Status.Phase == "Approved" {
+					return true
+				} else {
+					return false
+				}
 			},
 			DeleteFunc: func(de event.DeleteEvent) bool {
 				return false

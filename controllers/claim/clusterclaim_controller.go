@@ -18,7 +18,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -27,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
 	// "sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
@@ -56,28 +56,29 @@ var AutoAdmit bool
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.2/pkg/reconcile
 func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	fmt.Println("reconcile 호출!")
 
 	log := r.Log.WithValues("ClusterClaim", req.NamespacedName)
+	log.Info("Reconcile 호출")
 
 	_ = context.Background()
 	//get clusterclaim
 	clusterClaim := new(v1alpha1.ClusterClaim)
 	err := r.Get(ctx, req.NamespacedName, clusterClaim)
-	if errors.IsNotFound(err) { // 에러가 없으면
-		log.Info("ClusterClaim resource not found. Ignoring since object must be deleted")
+
+	if errors.IsNotFound(err) { // clu
+		log.Info("ClusterClaim resource가 없습니다.")
 		return ctrl.Result{}, nil
 	} else if err != nil { // 에러가 있으면 끝낸다.
-		log.Error(err, "Failed to get ClusterClaim")
+		log.Error(err, "clusterclaim을 가져오는데 문제가 발생했습니다.")
 		return ctrl.Result{}, err
 	}
-	log.Info("ClusterClaim resource found")
+	log.Info("ClusterClaim 리소스를 찾았습니다.")
 
+	AutoAdmit = true // 임시
 	if AutoAdmit == false {
 		if clusterClaim.Status.Phase == "" {
 			clusterClaim.Status.Phase = "Awaiting"
 			clusterClaim.Status.Reason = "waiting for amdin approval"
-			clusterClaim.Status.Test = "안녕하세요 테스트예요"
 			err := r.Status().Update(ctx, clusterClaim)
 			if err != nil {
 				log.Error(err, "Failed to update ClusterClaim Status")
@@ -85,6 +86,10 @@ func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			}
 
 		}
+	} else {
+		clusterClaim.Status.Phase = "Approved"
+		clusterClaim.Status.Reason = "임시 허용"
+		r.Status().Update(ctx, clusterClaim)
 	}
 	return ctrl.Result{}, nil
 }

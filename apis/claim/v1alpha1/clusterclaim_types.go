@@ -28,10 +28,6 @@ type ClusterClaimSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// +kubebuilder:validation:MaxLength=15
-	// +kubebuilder:validation:MinLength=10
-	Test string `json:"test"`
-
 	// +kubebuilder:validation:Required
 	// The name of the cluster to be created
 	ClusterName string `json:"clusterName"`
@@ -73,7 +69,6 @@ type AwsClaimSpec struct {
 }
 
 type ClusterClaimStatus struct {
-	Test    string `json:"test"`
 	Message string `json:"message,omitempty" protobuf:"bytes,2,opt,name=message"`
 	Reason  string `json:"reason,omitempty" protobuf:"bytes,3,opt,name=reason"`
 
@@ -84,7 +79,6 @@ type ClusterClaimStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=clusterclaims,shortName=cc,scope=Namespaced
-// +kubebuilder:printcolumn:name="Test",type=string,JSONPath=`.status.test`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.reason`
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"

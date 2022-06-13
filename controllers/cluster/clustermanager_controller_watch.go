@@ -18,6 +18,8 @@ import (
 	// "fmt"
 
 	"context"
+	"os"
+
 	v1alpha1claim "github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
 
 	v1alpha1cluster "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
@@ -28,15 +30,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (r *ClusterManagerReconciler) requeueCreateClusterManager(o client.Object) []ctrl.Request {
+func (r *ClusterManagerReconciler) requeueClusterManagerForClusterClaim(o client.Object) []ctrl.Request {
 	cc := o.DeepCopyObject().(*v1alpha1claim.ClusterClaim)
 	log := r.Log.WithValues("objectMapper", "claimToClusterManager", "namespace", cc.Namespace, cc.Kind, cc.Name)
 
-	// fmt.Println()
-	log.Info("clusterclaim이 생성되었으므로 clustermanager가 생성됩니다.")
-
 	key := types.NamespacedName{
-		Name:      cc.Name,
+		Name:      cc.Spec.ClusterName,
 		Namespace: cc.Namespace,
 	}
 
@@ -46,15 +45,29 @@ func (r *ClusterManagerReconciler) requeueCreateClusterManager(o client.Object) 
 		log.Info("clustermanager 리소스가 없습니다. clustermanager가 생성됩니다.")
 		newClusterManager := &v1alpha1cluster.ClusterManager{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:        cc.Name,
-				Namespace:   cc.Namespace,
-				Annotations: map[string]string{},
+				Name:      cc.Spec.ClusterName,
+				Namespace: cc.Namespace,
+				Labels: map[string]string{
+					v1alpha1cluster.LabelKeyClmClusterType: v1alpha1cluster.ClusterTypeCreated,
+					v1alpha1cluster.LabelKeyClcName:        cc.Name,
+				},
+				Annotations: map[string]string{
+					"owner":                                "creator",
+					"creator":                              "creator",
+					v1alpha1cluster.AnnotationKeyClmDomain: os.Getenv("HC_DOMAIN"),
+				},
 			},
 			Spec: v1alpha1cluster.ClusterManagerSpec{
 				Provider:  cc.Spec.Provider,
 				Version:   cc.Spec.Version,
 				MasterNum: cc.Spec.MasterNum,
 				WorkerNum: cc.Spec.WorkerNum,
+			},
+			AWSSpec: v1alpha1cluster.ProviderAWSSpec{
+				Region:     cc.Spec.ProviderAwsSpec.Region,
+				SshKey:     cc.Spec.ProviderAwsSpec.SshKey,
+				MasterType: cc.Spec.ProviderAwsSpec.MasterType,
+				WorkerType: cc.Spec.ProviderAwsSpec.WorkerType,
 			},
 		}
 
@@ -66,7 +79,12 @@ func (r *ClusterManagerReconciler) requeueCreateClusterManager(o client.Object) 
 	} else if err != nil {
 		log.Error(err, "clustermanager를 가져오는데 에러가 발생하였습니다.")
 		return nil
-	}
+	} else { // update를 하는 경우
 
+		clm.Spec.MasterNum = cc.Spec.MasterNum
+		clm.Spec.WorkerNum = cc.Spec.WorkerNum
+
+		r.Update(context.TODO(), clm)
+	}
 	return nil
 }

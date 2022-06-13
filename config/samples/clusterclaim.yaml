@@ -1,0 +1,15 @@
+apiVersion: claim.seung.com/v1alpha1
+kind: ClusterClaim
+metadata:
+  name: sample
+spec:
+  clusterName: "test"
+  version: "1.19"
+  provider: "AWS"
+  masterNum: 1
+  workerNum: 2
+  providerAwsSpec:
+    sshKey: "test-key"
+    region: "ap-northeast-2"
+    masterType: "t3.micro"
+    workerType: "t3.micro"

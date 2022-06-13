@@ -18,9 +18,6 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.test
-      name: Test
-      type: string
     - jsonPath: .status.phase
       name: Status
       type: string
@@ -96,10 +93,6 @@ spec:
                       see: https://aws.amazon.com/ec2/instance-types'
                     type: string
                 type: object
-              test:
-                maxLength: 15
-                minLength: 10
-                type: string
               version:
                 description: The version of kubernetes
                 type: string
@@ -110,7 +103,6 @@ spec:
             - clusterName
             - masterNum
             - provider
-            - test
             - version
             - workerNum
             type: object
@@ -129,10 +121,6 @@ spec:
                 type: string
               reason:
                 type: string
-              test:
-                type: string
-            required:
-            - test
             type: object
         required:
         - spec
