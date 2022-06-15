@@ -25,11 +25,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	// "sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
+	v1alpha1Claim "github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
+	v1alpha1Cluster "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
 )
 
 // ClusterClaimReconciler reconciles a ClusterClaim object
@@ -62,7 +65,7 @@ func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	_ = context.Background()
 	//get clusterclaim
-	clusterClaim := new(v1alpha1.ClusterClaim)
+	clusterClaim := new(v1alpha1Claim.ClusterClaim)
 	err := r.Get(ctx, req.NamespacedName, clusterClaim)
 
 	if errors.IsNotFound(err) { // clu
@@ -73,6 +76,11 @@ func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	log.Info("ClusterClaim 리소스를 찾았습니다.")
+
+	if clusterClaim.Status.Phase == "ClusterDeleted" {
+		log.Info("ClusterClaim의 Phase가 ClusterDeleted입니다.")
+		return ctrl.Result{}, nil
+	}
 
 	AutoAdmit = true // 임시
 	if AutoAdmit == false {
@@ -97,30 +105,50 @@ func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterClaimReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
-	log := r.Log
-
-	err := ctrl.NewControllerManagedBy(mgr).
-		For(new(v1alpha1.ClusterClaim)).
+	controller, err := ctrl.NewControllerManagedBy(mgr).
+		For(new(v1alpha1Claim.ClusterClaim)).
 		WithEventFilter(
 			predicate.Funcs{
 				CreateFunc: func(ce event.CreateEvent) bool {
-					log.Info("생성 이벤트 발생")
 					return true
 				},
 				UpdateFunc: func(ue event.UpdateEvent) bool {
-					log.Info("업데이트 이벤트 발생")
 					return true
 				},
 				DeleteFunc: func(de event.DeleteEvent) bool {
-					log.Info("삭제 이벤트 발생")
 					return false
 				},
 				GenericFunc: func(ge event.GenericEvent) bool {
-					log.Info("제네릭 이벤트 발생")
 					return false
 				},
 			},
 		).
-		Complete(r)
-	return err
+		Build(r)
+	if err != nil {
+		return err
+	}
+
+	return controller.Watch(
+		&source.Kind{Type: &v1alpha1Cluster.ClusterManager{}},
+		handler.EnqueueRequestsFromMapFunc(r.requeueClusterClaimForClusterManager),
+		predicate.Funcs{
+			CreateFunc: func(ce event.CreateEvent) bool {
+				return false
+			},
+			UpdateFunc: func(ue event.UpdateEvent) bool {
+				return false
+			},
+			DeleteFunc: func(de event.DeleteEvent) bool {
+				clm := de.Object.(*v1alpha1Cluster.ClusterManager)
+				val, ok := clm.Labels[v1alpha1Cluster.LabelKeyClmClusterType]
+				if ok && val == v1alpha1Cluster.ClusterTypeCreated {
+					return true
+				}
+				return false
+			},
+			GenericFunc: func(ge event.GenericEvent) bool {
+				return false
+			},
+		},
+	)
 }

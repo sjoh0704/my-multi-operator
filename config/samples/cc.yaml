@@ -7,7 +7,7 @@ spec:
   version: "1.19"
   provider: "AWS"
   masterNum: 1
-  workerNum: 2
+  workerNum: 5
   providerAwsSpec:
     sshKey: "test-key"
     region: "ap-northeast-2"

@@ -52,6 +52,7 @@ func (r *ClusterManagerReconciler) requeueClusterManagerForClusterClaim(o client
 					v1alpha1cluster.LabelKeyClcName:        cc.Name,
 				},
 				Annotations: map[string]string{
+					// TODO 수정
 					"owner":                                "creator",
 					"creator":                              "creator",
 					v1alpha1cluster.AnnotationKeyClmDomain: os.Getenv("HC_DOMAIN"),
@@ -80,10 +81,10 @@ func (r *ClusterManagerReconciler) requeueClusterManagerForClusterClaim(o client
 		log.Error(err, "clustermanager를 가져오는데 에러가 발생하였습니다.")
 		return nil
 	} else { // update를 하는 경우
+		//TODO 추가필요
 
 		clm.Spec.MasterNum = cc.Spec.MasterNum
 		clm.Spec.WorkerNum = cc.Spec.WorkerNum
-
 		r.Update(context.TODO(), clm)
 	}
 	return nil
