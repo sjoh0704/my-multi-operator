@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -127,6 +128,13 @@ type ClusterManager struct {
 	Spec    ClusterManagerSpec   `json:"spec,omitempty"`
 	AWSSpec ProviderAWSSpec      `json:"awsSpec,omitempty"`
 	Status  ClusterManagerStatus `json:"status,omitempty"`
+}
+
+func (clm *ClusterManager) GetNamespacedName() types.NamespacedName {
+	return types.NamespacedName{
+		Namespace: clm.Namespace,
+		Name:      clm.Name,
+	}
 }
 
 //+kubebuilder:object:root=true
