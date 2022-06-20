@@ -22,7 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
-	v1alphaCluster "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
+	clusterv1alpha1 "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -70,9 +70,8 @@ type ClusterManagerReconciler struct {
 func (r *ClusterManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, reterr error) {
 	_ = context.Background()
 	log := r.Log.WithValues("clustermanager", req.NamespacedName)
-	log.Info("Reconcile 호출")
 
-	clusterManager := new(v1alphaCluster.ClusterManager)
+	clusterManager := new(clusterv1alpha1.ClusterManager)
 	err := r.Get(context.TODO(), req.NamespacedName, clusterManager)
 	if errors.IsNotFound(err) {
 		log.Info("clusterManager 리소스가 없습니다.", req.NamespacedName)
@@ -81,13 +80,11 @@ func (r *ClusterManagerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		log.Error(err, "clusterManager 리소스를 가져오는 실패했습니다.")
 		return ctrl.Result{}, err
 	}
-	log.Info("clusterManager 리소스를 찾았습니다.")
 
 	patchHelper, err := patch.NewHelper(clusterManager, r.Client)
 	if err != nil {
 		return ctrl.Result{}, nil
 	}
-
 	defer func() {
 		r.reconcilePhase(clusterManager)
 		if err := patchHelper.Patch(context.TODO(), clusterManager); err != nil {
@@ -95,17 +92,24 @@ func (r *ClusterManagerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}()
 
-	// TODO(user): your logic here
+	log.Info("clusterManager 리소스를 찾았습니다.")
+	// TODO clustermanager 생성 타입에 따른 구분이 필요
+
+	if _, exists := clusterManager.Labels[clusterv1alpha1.LabelKeyClmClusterType]; !exists {
+		clusterManager.Labels = map[string]string{clusterv1alpha1.LabelKeyClmClusterType: clusterv1alpha1.ClusterTypeCreated}
+	}
 
 	return r.reconcile(ctx, clusterManager)
 }
 
-func (r *ClusterManagerReconciler) reconcile(ctx context.Context, clusterManager *v1alphaCluster.ClusterManager) (ctrl.Result, error) {
-	phases := []func(context.Context, *v1alphaCluster.ClusterManager) (ctrl.Result, error){}
-	tmp := func(ctx context.Context, clm *v1alphaCluster.ClusterManager) (ctrl.Result, error) {
+func (r *ClusterManagerReconciler) reconcile(ctx context.Context, clusterManager *clusterv1alpha1.ClusterManager) (ctrl.Result, error) {
+
+	phases := []func(context.Context, *clusterv1alpha1.ClusterManager) (ctrl.Result, error){}
+	tmp := func(ctx context.Context, clm *clusterv1alpha1.ClusterManager) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
-	if clusterManager.Labels[v1alphaCluster.LabelKeyClmClusterType] == v1alphaCluster.ClusterTypeCreated {
+	if clusterManager.Labels[clusterv1alpha1.LabelKeyClmClusterType] == clusterv1alpha1.ClusterTypeCreated {
+		// label이 달리기 전에 호출되면, phase가 추가되지 않는다.
 		// Cluster claim을 통해서 생성된 경우
 		phases = append(phases, r.CreateCluster)
 	} else {
@@ -118,23 +122,26 @@ func (r *ClusterManagerReconciler) reconcile(ctx context.Context, clusterManager
 	// phases = append(phases, tmp)
 
 	res := ctrl.Result{}
-	totalErrors := []error{}
+	errs := []error{}
 	for _, phase := range phases {
 		result, err := phase(ctx, clusterManager)
 
 		if err != nil {
-			totalErrors = append(totalErrors, err)
+			errs = append(errs, err)
+		}
+		if len(errs) > 0 {
+			continue
 		}
 		// TODO 변경
 		res = result
 	}
-	return res, kerrors.NewAggregate(totalErrors)
+	return res, kerrors.NewAggregate(errs)
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	controller, err := ctrl.NewControllerManagedBy(mgr).
-		For(&v1alphaCluster.ClusterManager{}).
+		For(&clusterv1alpha1.ClusterManager{}).
 		WithEventFilter(predicate.Funcs{
 			CreateFunc: func(ce event.CreateEvent) bool {
 				return true
@@ -143,7 +150,7 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return false
 			},
 			UpdateFunc: func(ue event.UpdateEvent) bool {
-				return true
+				return false
 			},
 			GenericFunc: func(ge event.GenericEvent) bool {
 				return false
@@ -155,12 +162,14 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		handler.EnqueueRequestsFromMapFunc(r.requeueClusterManagerForClusterClaim),
 		predicate.Funcs{
 			UpdateFunc: func(ue event.UpdateEvent) bool {
-				ccNew := ue.ObjectNew.(*v1alpha1.ClusterClaim)
-				if ccNew.Status.Phase == "Approved" {
-					return true
-				} else {
-					return false
-				}
+				// ccNew := ue.ObjectNew.(*v1alpha1.ClusterClaim)
+				// if ccNew.Status.Phase == "Approved" {
+				// 	return true
+				// } else {
+				// 	return false
+				// }
+				// TODO 업데이트 허용?
+				return false
 			},
 			CreateFunc: func(ce event.CreateEvent) bool {
 				cc := ce.Object.(*v1alpha1.ClusterClaim)
@@ -181,20 +190,20 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return err
 }
 
-func (r *ClusterManagerReconciler) reconcilePhase(clusterManager *v1alphaCluster.ClusterManager) {
+func (r *ClusterManagerReconciler) reconcilePhase(clusterManager *clusterv1alpha1.ClusterManager) {
 	if clusterManager.Status.Phase == "" {
-		if clusterManager.Labels[v1alphaCluster.LabelKeyClmClusterType] == v1alphaCluster.ClusterTypeRegistered {
-			clusterManager.Status.SetTypedPhase(v1alphaCluster.ClusterManagerPhaseRegistering)
+		if clusterManager.Labels[clusterv1alpha1.LabelKeyClmClusterType] == clusterv1alpha1.ClusterTypeRegistered {
+			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistering)
 		} else {
-			clusterManager.Status.SetTypedPhase(v1alphaCluster.ClusterManagerPhaseRegistered)
+			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistered)
 		}
 	}
 
 	if clusterManager.Status.Ready {
-		if clusterManager.Labels[v1alphaCluster.LabelKeyClmClusterType] == v1alphaCluster.ClusterTypeRegistered {
-			clusterManager.Status.SetTypedPhase(v1alphaCluster.ClusterManagerPhaseRegistered)
+		if clusterManager.Labels[clusterv1alpha1.LabelKeyClmClusterType] == clusterv1alpha1.ClusterTypeRegistered {
+			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistered)
 		} else {
-			clusterManager.Status.SetTypedPhase(v1alphaCluster.ClusterManagerPhaseProvisioned)
+			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseProvisioned)
 		}
 	}
 

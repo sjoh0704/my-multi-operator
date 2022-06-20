@@ -61,9 +61,7 @@ var AutoAdmit bool
 func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
 	log := r.Log.WithValues("ClusterClaim", req.NamespacedName)
-	log.Info("Reconcile 호출")
 
-	_ = context.Background()
 	//get clusterclaim
 	clusterClaim := new(v1alpha1Claim.ClusterClaim)
 	err := r.Get(ctx, req.NamespacedName, clusterClaim)
