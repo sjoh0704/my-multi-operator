@@ -37,6 +37,8 @@ import (
 	clustercontrollers "github.com/sjoh0704/my-multi-operator/controllers/cluster"
 	infrav1beta1 "sigs.k8s.io/cluster-api-provider-aws/api/v1beta1"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	bootstrapv1beta1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
+	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -54,7 +56,8 @@ func init() {
 	// controller에 정의되어 있지 않은 kind를 사용할때는 scheme에 추가
 	utilruntime.Must(capiv1beta1.AddToScheme(scheme))
 	utilruntime.Must(infrav1beta1.AddToScheme(scheme))
-
+	utilruntime.Must(controlplanev1.AddToScheme(scheme))
+	utilruntime.Must(bootstrapv1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

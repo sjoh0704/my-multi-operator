@@ -90,13 +90,16 @@ func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				log.Error(err, "Failed to update ClusterClaim Status")
 				return ctrl.Result{}, err
 			}
-
 		}
-	} else {
+	}
+
+	if AutoAdmit == true && clusterClaim.Status.Phase != "Approved" {
 		clusterClaim.Status.Phase = "Approved"
 		clusterClaim.Status.Reason = "임시 허용"
 		r.Status().Update(ctx, clusterClaim)
+		return ctrl.Result{Requeue: true}, nil
 	}
+
 	return ctrl.Result{}, nil
 }
 

@@ -38,7 +38,6 @@ func (r *ClusterManagerReconciler) requeueClusterManagerForClusterClaim(o client
 		Name:      cc.Spec.ClusterName,
 		Namespace: cc.Namespace,
 	}
-
 	clm := new(v1alpha1cluster.ClusterManager)
 	err := r.Get(context.TODO(), key, clm)
 	if errors.IsNotFound(err) {

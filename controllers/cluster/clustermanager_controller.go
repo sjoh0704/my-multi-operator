@@ -112,6 +112,7 @@ func (r *ClusterManagerReconciler) reconcile(ctx context.Context, clusterManager
 		// label이 달리기 전에 호출되면, phase가 추가되지 않는다.
 		// Cluster claim을 통해서 생성된 경우
 		phases = append(phases, r.CreateCluster)
+		phases = append(phases, r.CreateMachineDeployment)
 	} else {
 		// cluster registration을 통해서 생성된 경우
 		// 현재는 cluster registration을 사용하지 않음
@@ -162,17 +163,17 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		handler.EnqueueRequestsFromMapFunc(r.requeueClusterManagerForClusterClaim),
 		predicate.Funcs{
 			UpdateFunc: func(ue event.UpdateEvent) bool {
-				// ccNew := ue.ObjectNew.(*v1alpha1.ClusterClaim)
-				// if ccNew.Status.Phase == "Approved" {
-				// 	return true
-				// } else {
-				// 	return false
-				// }
+				ccNew := ue.ObjectNew.(*v1alpha1.ClusterClaim)
+				if ccNew.Status.Phase == "Approved" {
+					return true
+				} else {
+					return false
+				}
 				// TODO 업데이트 허용?
-				return false
 			},
 			CreateFunc: func(ce event.CreateEvent) bool {
 				cc := ce.Object.(*v1alpha1.ClusterClaim)
+
 				if cc.Status.Phase == "Approved" {
 					return true
 				} else {
