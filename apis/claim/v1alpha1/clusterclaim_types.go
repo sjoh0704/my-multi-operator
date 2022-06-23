@@ -52,6 +52,8 @@ type ClusterClaimSpec struct {
 	// Provider Aws Spec
 	ProviderAwsSpec AwsClaimSpec `json:"providerAwsSpec,omitempty"`
 
+	ProviderVsphereSpec VsphereClaimSpec `json:"providerVsphereSpec,omitempty"`
+
 	// Provider vSphere Spec
 	// ProviderVsphereSpec VsphereClaimSpec `json:"providerVsphereSpec,omitempty"`
 }
@@ -66,6 +68,39 @@ type AwsClaimSpec struct {
 	MasterType string `json:"masterType,omitempty"`
 	// The type of VM for master node. Example: m4.xlarge. see: https://aws.amazon.com/ec2/instance-types
 	WorkerType string `json:"workerType,omitempty"`
+}
+
+type VsphereClaimSpec struct {
+	// The internal IP address cider block for pods
+	PodCidr string `json:"podCidr,omitempty"`
+	// The IP address of vCenter Server Application(VCSA)
+	VcenterIp string `json:"vcenterIp,omitempty"`
+	// The user id of VCSA
+	VcenterId string `json:"vcenterId,omitempty"`
+	// The password of VCSA
+	VcenterPassword string `json:"vcenterPassword,omitempty"`
+	// The TLS thumbprint of machine certificate
+	VcenterThumbprint string `json:"vcenterThumbprint,omitempty"`
+	// The name of network
+	VcenterNetwork string `json:"vcenterNetwork,omitempty"`
+	// The name of data center
+	VcenterDataCenter string `json:"vcenterDataCenter,omitempty"`
+	// The name of data store
+	VcenterDataStore string `json:"vcenterDataStore,omitempty"`
+	// The name of folder
+	VcenterFolder string `json:"vcenterFolder,omitempty"`
+	// The name of resource pool
+	VcenterResourcePool string `json:"vcenterResourcePool,omitempty"`
+	// The IP address of control plane for remote cluster(vip)
+	VcenterKcpIp string `json:"vcenterKcpIp,omitempty"`
+	// The number of cpus for vm
+	VcenterCpuNum int `json:"vcenterCpuNum,omitempty"`
+	// The memory size for vm, write as MB without unit. Example: 8192
+	VcenterMemSize int `json:"vcenterMemSize,omitempty"`
+	// The disk size for vm, write as GB without unit. Example: 25
+	VcenterDiskSize int `json:"vcenterDiskSize,omitempty"`
+	// The template name for cloud init
+	VcenterTemplate string `json:"vcenterTemplate,omitempty"`
 }
 
 type ClusterClaimStatus struct {

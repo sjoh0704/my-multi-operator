@@ -22,6 +22,7 @@ import (
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -64,15 +65,14 @@ func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	//get clusterclaim
 	clusterClaim := new(v1alpha1Claim.ClusterClaim)
-	err := r.Get(ctx, req.NamespacedName, clusterClaim)
-
-	if errors.IsNotFound(err) { // clu
+	if err := r.Get(ctx, req.NamespacedName, clusterClaim); errors.IsNotFound(err) { // clu
 		log.Info("ClusterClaim resource가 없습니다.")
 		return ctrl.Result{}, nil
 	} else if err != nil { // 에러가 있으면 끝낸다.
 		log.Error(err, "clusterclaim을 가져오는데 문제가 발생했습니다.")
 		return ctrl.Result{}, err
 	}
+
 	log.Info("ClusterClaim 리소스를 찾았습니다.")
 
 	if clusterClaim.Status.Phase == "ClusterDeleted" {
@@ -80,27 +80,64 @@ func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	}
 
-	AutoAdmit = true // 임시
+	// AutoAdmit = true // 임시
 	if AutoAdmit == false {
 		if clusterClaim.Status.Phase == "" {
 			clusterClaim.Status.Phase = "Awaiting"
-			clusterClaim.Status.Reason = "waiting for amdin approval"
+			clusterClaim.Status.Reason = "Waiting for amdin approval"
 			err := r.Status().Update(ctx, clusterClaim)
 			if err != nil {
 				log.Error(err, "Failed to update ClusterClaim Status")
 				return ctrl.Result{}, err
 			}
+		} else if clusterClaim.Status.Phase == "Awaiting" {
+			return ctrl.Result{}, nil
 		}
 	}
 
-	if AutoAdmit == true && clusterClaim.Status.Phase != "Approved" {
-		clusterClaim.Status.Phase = "Approved"
-		clusterClaim.Status.Reason = "임시 허용"
-		r.Status().Update(ctx, clusterClaim)
-		return ctrl.Result{Requeue: true}, nil
-	}
+	// if AutoAdmit == true && clusterClaim.Status.Phase != "Approved" {
+	// 	clusterClaim.Status.Phase = "Approved"
+	// 	clusterClaim.Status.Reason = "임시 허용"
+	// 	r.Status().Update(ctx, clusterClaim)
+	// 	return ctrl.Result{Requeue: true}, nil
+	// }
 
 	return ctrl.Result{}, nil
+}
+
+func (r *ClusterClaimReconciler) requeueClusterClaimForClusterManager(o client.Object) []ctrl.Request {
+	clm := o.DeepCopyObject().(*v1alpha1Cluster.ClusterManager)
+	log := r.Log.WithValues("objectMapper", "clusterManagerToClusterClaim", "clusterManager", clm.Name)
+	log.Info("clustermanagerToClusterClaim mapping...")
+
+	cc := new(v1alpha1Claim.ClusterClaim)
+	key := types.NamespacedName{
+		Namespace: clm.Namespace,
+		Name:      clm.Labels[v1alpha1Cluster.LabelKeyClcName],
+	}
+
+	if err := r.Get(context.TODO(), key, cc); errors.IsNotFound(err) {
+		log.Info("ClusterClaim을 찾지 못했습니다.")
+		return nil
+	} else if err != nil {
+		log.Error(err, "ClusterClaim을 가져오는데 문제가 발생했습니다.")
+		return nil
+	}
+
+	if cc.Status.Phase != "Approved" {
+		log.Info("ClusterClaims for ClusterManager [" + cc.Spec.ClusterName + "] is already delete... Do not update cc status to delete ")
+		return nil
+	}
+
+	// Approved인 상태에서 삭제되는 경우 => clusterclaim은 clusterDeleted로 변경
+	cc.Status.Phase = "ClusterDeleted"
+	cc.Status.Reason = "Cluster가 삭제되었습니다."
+
+	if err := r.Status().Update(context.TODO(), cc); err != nil {
+		log.Error(err, "ClusterClaim 상태를 변경하는데 실패했습니다.")
+		return nil
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -125,6 +162,7 @@ func (r *ClusterClaimReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			},
 		).
 		Build(r)
+
 	if err != nil {
 		return err
 	}

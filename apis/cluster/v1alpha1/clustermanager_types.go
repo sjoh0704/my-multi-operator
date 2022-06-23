@@ -25,6 +25,12 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type ResourceType struct {
+	Type     string `json:"type,omitempty"`
+	Capacity string `json:"capacity,omitempty"`
+	Usage    string `json:"usage,omitempty"`
+}
+
 // ClusterManagerSpec defines the desired state of ClusterManager
 type ClusterManagerSpec struct {
 	// +kubebuilder:validation:Required
@@ -39,12 +45,6 @@ type ClusterManagerSpec struct {
 	// +kubebuilder:validation:Required
 	// Worker node의 갯수
 	WorkerNum int `json:"workerNum"`
-}
-
-type ResourceType struct {
-	Type     string `json:"type,omitempty"`
-	Capacity string `json:"capacity,omitempty"`
-	Usage    string `json:"usage,omitempty"`
 }
 
 type ProviderAWSSpec struct {
@@ -130,13 +130,6 @@ type ClusterManager struct {
 	Status  ClusterManagerStatus `json:"status,omitempty"`
 }
 
-func (clm *ClusterManager) GetNamespacedName() types.NamespacedName {
-	return types.NamespacedName{
-		Namespace: clm.Namespace,
-		Name:      clm.Name,
-	}
-}
-
 //+kubebuilder:object:root=true
 
 // ClusterManagerList contains a list of ClusterManager
@@ -148,4 +141,11 @@ type ClusterManagerList struct {
 
 func init() {
 	SchemeBuilder.Register(&ClusterManager{}, &ClusterManagerList{})
+}
+
+func (clm *ClusterManager) GetNamespacedName() types.NamespacedName {
+	return types.NamespacedName{
+		Namespace: clm.Namespace,
+		Name:      clm.Name,
+	}
 }
