@@ -1,6 +1,10 @@
 apiVersion: cluster.seung.com/v1alpha1
 kind: ClusterManager
 metadata:
-  name: clustermanager-sample
+  name: test3
 spec:
-  # TODO(user): Add fields here
+  masterNum: 1
+  workerNum: 1
+  provider: "aws"
+  version: "1.19.6"
+

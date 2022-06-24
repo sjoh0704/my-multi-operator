@@ -143,7 +143,7 @@ func (r *ClusterManagerReconciler) reconcile(ctx context.Context, clusterManager
 	}
 
 	// 공통으로 수행하는 과정
-	// phases = append(phases, tmp)
+	phases = append(phases, r.UpdateClusterManagerStatus)
 
 	res := ctrl.Result{}
 	errs := []error{}
@@ -164,6 +164,7 @@ func (r *ClusterManagerReconciler) reconcile(ctx context.Context, clusterManager
 
 func (r *ClusterManagerReconciler) reconcileDelete(ctx context.Context, clusterManager *clusterv1alpha1.ClusterManager) (ctrl.Result, error) {
 	log := r.Log.WithValues("clustermanager", clusterManager.GetNamespacedName())
+	log.Info("Delete를 위한 reconcile phase 시작")
 
 	// 여러가지 요소들 삭제 작업
 
