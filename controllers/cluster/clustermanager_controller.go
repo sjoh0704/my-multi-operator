@@ -75,17 +75,14 @@ type ClusterManagerReconciler struct {
 func (r *ClusterManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, reterr error) {
 	_ = context.Background()
 	log := r.Log.WithValues("clustermanager", req.NamespacedName)
-
-	clusterManager := new(clusterv1alpha1.ClusterManager)
-	err := r.Get(context.TODO(), req.NamespacedName, clusterManager)
-	if errors.IsNotFound(err) {
-		log.Info("clusterManager 리소스가 없습니다.", req.NamespacedName)
+	clusterManager := &clusterv1alpha1.ClusterManager{}
+	if err := r.Get(context.TODO(), req.NamespacedName, clusterManager); errors.IsNotFound(err) {
+		log.Info("clusterManager 리소스가 없습니다.")
 		return ctrl.Result{}, nil
 	} else if err != nil {
 		log.Error(err, "clusterManager 리소스를 가져오는 실패했습니다.")
 		return ctrl.Result{}, err
 	}
-
 	patchHelper, err := patch.NewHelper(clusterManager, r.Client)
 	if err != nil {
 		return ctrl.Result{}, nil
@@ -93,6 +90,7 @@ func (r *ClusterManagerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	defer func() {
 		r.reconcilePhase(clusterManager)
 		if err := patchHelper.Patch(context.TODO(), clusterManager); err != nil {
+			log.Error(err, "patch를 하는데 문제가 발생했습니다. ")
 			reterr = err
 		}
 	}()
@@ -101,7 +99,7 @@ func (r *ClusterManagerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// TODO clustermanager 생성 타입에 따른 구분이 필요
 
 	if !controllerutil.ContainsFinalizer(clusterManager, clusterv1alpha1.ClusterManagerFinalizer) {
-		controllerutil.AddFinalizer(clusterManager, clusterv1alpha1.ClusterManagerFinalizer)
+		controllerutil.AddFinalizer(clusterManager, clusterv1alpha1.ClusterManagerFinalizer) // 얘 자체도 update 이벤트
 		return ctrl.Result{}, nil
 	}
 
@@ -110,10 +108,10 @@ func (r *ClusterManagerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// }
 
 	if clusterManager.Labels[clusterv1alpha1.LabelKeyClmClusterType] == clusterv1alpha1.ClusterTypeRegistered {
-		// cluster를 등록하는 경우
+		// cluster를 등록해서 manager를 생성한 경우
 
 	} else {
-		// claim을 생성하는 경우
+		// claim을 생성을 통해 manager를 생성한 경우
 		if !clusterManager.ObjectMeta.DeletionTimestamp.IsZero() { // deletion time stamp가 생기면
 			clusterManager.Status.Ready = false
 			return r.reconcileDelete(context.TODO(), clusterManager)
@@ -167,7 +165,6 @@ func (r *ClusterManagerReconciler) reconcile(ctx context.Context, clusterManager
 func (r *ClusterManagerReconciler) reconcileDelete(ctx context.Context, clusterManager *clusterv1alpha1.ClusterManager) (ctrl.Result, error) {
 	log := r.Log.WithValues("clustermanager", clusterManager.GetNamespacedName())
 
-
 	// 여러가지 요소들 삭제 작업
 
 	// delete clustermanager
@@ -180,7 +177,8 @@ func (r *ClusterManagerReconciler) reconcileDelete(ctx context.Context, clusterM
 		// deletionTimeStamp가 이미 걸려있기 때문에 굳이 삭제하는 작업을 하지 않아도 finalizer만 지워주면 된다.
 		// 하지만 API 서버에 전달 및 이외의 다른 여러가지 변경 사항은 확인을 해봐야 할 듯함
 		controllerutil.RemoveFinalizer(clusterManager, clusterv1alpha1.ClusterManagerFinalizer)
-		return ctrl.Result{}, nil
+		log.Info("clusterManager를 삭제합니다.")
+		return ctrl.Result{}, nil // 최종 끝나는 지점
 	} else if err != nil {
 		log.Error(err, "cluster를 가져오는데 실패")
 		return ctrl.Result{}, nil
@@ -200,10 +198,29 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return true
 			},
 			DeleteFunc: func(de event.DeleteEvent) bool {
+
 				return false
 			},
 			UpdateFunc: func(ue event.UpdateEvent) bool {
-				return true
+				// update 이벤트가 발생한 경우:
+				// finalizer가 달린 후, 이후의 추가 작업이 필요한 경우 (O)
+				// 삭제되기 위해 deletionTimeStamp가 달리는 경우 (O)
+				// controlplane endpoint가 업데이트 되는 경우
+				// 하위 리소스가 not ready가 되는 경우
+				fmt.Println("update!!!")
+				oldClm := ue.ObjectOld.(*clusterv1alpha1.ClusterManager)
+				newClm := ue.ObjectNew.(*clusterv1alpha1.ClusterManager)
+
+				isFinalized := !controllerutil.ContainsFinalizer(oldClm, clusterv1alpha1.ClusterManagerFinalizer) &&
+					controllerutil.ContainsFinalizer(newClm, clusterv1alpha1.ClusterManagerFinalizer)
+				isDeleted := oldClm.DeletionTimestamp.IsZero() &&
+					!newClm.DeletionTimestamp.IsZero()
+
+				if isDeleted || isFinalized {
+					return true
+				} else {
+					return false
+				}
 			},
 			GenericFunc: func(ge event.GenericEvent) bool {
 				return false
@@ -215,7 +232,7 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		handler.EnqueueRequestsFromMapFunc(r.requeueClusterManagerForClusterClaim),
 		predicate.Funcs{
 			UpdateFunc: func(ue event.UpdateEvent) bool {
-				fmt.Println("업데이트 발생")
+
 				ccNew := ue.ObjectNew.(*v1alpha1.ClusterClaim)
 				if ccNew.Status.Phase == "Approved" {
 					return true
@@ -252,7 +269,6 @@ func (r *ClusterManagerReconciler) reconcilePhase(clusterManager *clusterv1alpha
 			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistered)
 		}
 	}
-
 	if clusterManager.Status.Ready {
 		if clusterManager.Labels[clusterv1alpha1.LabelKeyClmClusterType] == clusterv1alpha1.ClusterTypeRegistered {
 			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistered)
@@ -260,5 +276,8 @@ func (r *ClusterManagerReconciler) reconcilePhase(clusterManager *clusterv1alpha
 			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseProvisioned)
 		}
 	}
+	if !clusterManager.DeletionTimestamp.IsZero() {
 
+		clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseDeleting)
+	}
 }
