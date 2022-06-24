@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	clusterv1alpha1 "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
 	"github.com/sjoh0704/my-multi-operator/controllers/util"
@@ -191,7 +192,50 @@ func (r *ClusterManagerReconciler) UpdateClusterManagerStatus(ctx context.Contex
 		return ctrl.Result{}, err
 	}
 	clusterManager.Spec.Version = fmt.Sprintf("%v", data["kubernetesVersion"])
+
+	nodeList, err := remoteClientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		log.Error(err, "K8S node list를 가져오는데 실패했습니다.")
+		return ctrl.Result{}, nil
+	}
+
+	clusterManager.Spec.MasterNum = 0
+	clusterManager.Status.MasterRun = 0
+	clusterManager.Spec.WorkerNum = 0
+	clusterManager.Status.WorkerRun = 0
+	clusterManager.Spec.Provider = util.ProviderUnknown
+	clusterManager.Status.Provider = util.ProviderUnknown
+
+
+	// master와 worker에 대한 정보 세팅: ready 상태, run 상태, node 수, provider
+	for _, node := range nodeList.Items{
+		if _, ok := node.Labels["node-role.kubernetes.io/master"]; ok{ // master node
+			clusterManager.Spec.MasterNum ++
+			if  node.Status.Conditions[len(node.Status.Conditions)-1].Type == "Ready"{
+				clusterManager.Status.MasterRun ++
+			}
+		}else{ // worker node
+			clusterManager.Spec.WorkerNum++
+			if  node.Status.Conditions[len(node.Status.Conditions)-1].Type == "Ready"{
+				clusterManager.Status.WorkerRun ++
+			}
+		}
+		if clusterManager.Spec.Provider == util.ProviderUnknown && node.Spec.ProviderID != "" {
+			providerID, err := util.GetProviderName(
+				strings.Split(node.Spec.ProviderID, "://")[0],
+			)
+			if err != nil {
+				log.Error(err, "provider명을 찾을 수 없습니다.")
+			}
+			clusterManager.Status.Provider = providerID
+			clusterManager.Spec.Provider = providerID
+		}
+	}
 	
+
+
+
+
 
 	return ctrl.Result{}, nil
 }
