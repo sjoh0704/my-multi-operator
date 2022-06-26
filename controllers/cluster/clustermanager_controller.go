@@ -24,8 +24,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
 	clusterv1alpha1 "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
-	// "github.com/sjoh0704/my-multi-operator/controllers/util"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -170,7 +169,7 @@ func (r *ClusterManagerReconciler) reconcileDelete(ctx context.Context, clusterM
 
 	// delete clustermanager
 	key := clusterManager.GetNamespacedName()
-	if err := r.Get(context.TODO(), key, &capiv1beta1.Cluster{}); errors.IsNotFound(err) {
+	if err := r.Get(context.TODO(), key, &capiv1alpha3.Cluster{}); errors.IsNotFound(err) {
 		// cluster가 삭제된 후, finalizer를 지우는 작업
 		// if err := util.Delete(clusterManager.Namespace, clusterv1alpha1.ClusterManagerFinalizer); err != nil {
 		// 	log.Error(err, "clustermanager를 삭제하는데 실패")
@@ -261,6 +260,7 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return err
 }
+
 
 func (r *ClusterManagerReconciler) reconcilePhase(clusterManager *clusterv1alpha1.ClusterManager) {
 	if clusterManager.Status.Phase == "" {

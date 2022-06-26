@@ -35,10 +35,10 @@ import (
 	clusterv1alpha1 "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
 	claimcontrollers "github.com/sjoh0704/my-multi-operator/controllers/claim"
 	clustercontrollers "github.com/sjoh0704/my-multi-operator/controllers/cluster"
-	infrav1beta1 "sigs.k8s.io/cluster-api-provider-aws/api/v1beta1"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	bootstrapv1beta1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
-	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
+	infrav1alpha3 "sigs.k8s.io/cluster-api-provider-aws/api/v1alpha3"
+	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	bootstrapv1alpha3 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha3"
+	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -54,10 +54,10 @@ func init() {
 	utilruntime.Must(clusterv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(clusterv1alpha1.AddToScheme(scheme))
 	// controller에 정의되어 있지 않은 kind를 사용할때는 scheme에 추가
-	utilruntime.Must(capiv1beta1.AddToScheme(scheme))
-	utilruntime.Must(infrav1beta1.AddToScheme(scheme))
+	utilruntime.Must(capiv1alpha3.AddToScheme(scheme))
+	utilruntime.Must(infrav1alpha3.AddToScheme(scheme))
 	utilruntime.Must(controlplanev1.AddToScheme(scheme))
-	utilruntime.Must(bootstrapv1beta1.AddToScheme(scheme))
+	utilruntime.Must(bootstrapv1alpha3.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

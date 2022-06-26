@@ -11,37 +11,38 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	infrav1beta1 "sigs.k8s.io/cluster-api-provider-aws/api/v1beta1"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	bootstrapv1beta1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
-	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
+	infrav1alpha3 "sigs.k8s.io/cluster-api-provider-aws/api/v1alpha3"
+	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	bootstrapv1alpha3 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha3"
+	upstreamv1beta1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/types/upstreamv1beta1"
+	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // cluster => AWSCluster, KubeadmControlplane, AWSMachineTemplate
-func (r *ClusterManagerReconciler) CreateClusterForCAPI(clm *clusterv1alpha1.ClusterManager) *capiv1beta1.Cluster {
+func (r *ClusterManagerReconciler) CreateClusterForCAPI(clm *clusterv1alpha1.ClusterManager) *capiv1alpha3.Cluster {
 
-	cluster := &capiv1beta1.Cluster{
+	cluster := &capiv1alpha3.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clm.Name,
 			Namespace: clm.Namespace,
 		},
-		Spec: capiv1beta1.ClusterSpec{
-			ClusterNetwork: &capiv1beta1.ClusterNetwork{
-				Pods: &capiv1beta1.NetworkRanges{
+		Spec: capiv1alpha3.ClusterSpec{
+			ClusterNetwork: &capiv1alpha3.ClusterNetwork{
+				Pods: &capiv1alpha3.NetworkRanges{
 					CIDRBlocks: []string{
 						"192.168.0.0/16",
 					},
 				},
 			},
 			ControlPlaneRef: &corev1.ObjectReference{
-				APIVersion: "controlplane.cluster.x-k8s.io/v1beta1",
+				APIVersion: "controlplane.cluster.x-k8s.io/v1alpha3",
 				Kind:       "KubeadmControlPlane",
 				Name:       clm.Name + "-control-plane",
 			},
 			InfrastructureRef: &corev1.ObjectReference{
-				APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1",
+				APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha3",
 				Kind:       "AWSCluster",
 				Name:       clm.Name,
 			},
@@ -50,13 +51,13 @@ func (r *ClusterManagerReconciler) CreateClusterForCAPI(clm *clusterv1alpha1.Clu
 	return cluster
 }
 
-func (r *ClusterManagerReconciler) AWSClusterForCluster(clm *clusterv1alpha1.ClusterManager, cluster *capiv1beta1.Cluster) *infrav1beta1.AWSCluster {
-	awsCluster := &infrav1beta1.AWSCluster{
+func (r *ClusterManagerReconciler) AWSClusterForCluster(clm *clusterv1alpha1.ClusterManager, cluster *capiv1alpha3.Cluster) *infrav1alpha3.AWSCluster {
+	awsCluster := &infrav1alpha3.AWSCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clm.Name,
 			Namespace: clm.Namespace,
 		},
-		Spec: infrav1beta1.AWSClusterSpec{
+		Spec: infrav1alpha3.AWSClusterSpec{
 			Region:     clm.AWSSpec.Region,
 			SSHKeyName: &clm.AWSSpec.SshKey,
 		},
@@ -66,7 +67,7 @@ func (r *ClusterManagerReconciler) AWSClusterForCluster(clm *clusterv1alpha1.Clu
 	return awsCluster
 }
 
-func (r *ClusterManagerReconciler) KubeadmControlPlaneForCluster(clm *clusterv1alpha1.ClusterManager, cluster *capiv1beta1.Cluster) *controlplanev1.KubeadmControlPlane {
+func (r *ClusterManagerReconciler) KubeadmControlPlaneForCluster(clm *clusterv1alpha1.ClusterManager, cluster *capiv1alpha3.Cluster) *controlplanev1.KubeadmControlPlane {
 	var replicas int32 = int32(clm.Spec.MasterNum)
 
 	kcp := &controlplanev1.KubeadmControlPlane{
@@ -75,36 +76,34 @@ func (r *ClusterManagerReconciler) KubeadmControlPlaneForCluster(clm *clusterv1a
 			Namespace: clm.Namespace,
 		},
 		Spec: controlplanev1.KubeadmControlPlaneSpec{
-			KubeadmConfigSpec: bootstrapv1beta1.KubeadmConfigSpec{
-				ClusterConfiguration: &bootstrapv1beta1.ClusterConfiguration{
-					APIServer: bootstrapv1beta1.APIServer{
-						ControlPlaneComponent: bootstrapv1beta1.ControlPlaneComponent{
+			KubeadmConfigSpec: bootstrapv1alpha3.KubeadmConfigSpec{
+				ClusterConfiguration: &upstreamv1beta1.ClusterConfiguration{
+					APIServer: upstreamv1beta1.APIServer{
+						ControlPlaneComponent: upstreamv1beta1.ControlPlaneComponent{
 							ExtraArgs: map[string]string{"cloud-provider": "aws"},
 						},
 					},
-					ControllerManager: bootstrapv1beta1.ControlPlaneComponent{
+					ControllerManager: upstreamv1beta1.ControlPlaneComponent{
 						ExtraArgs: map[string]string{"cloud-provider": "aws"},
 					},
 				},
-				InitConfiguration: &bootstrapv1beta1.InitConfiguration{
-					NodeRegistration: bootstrapv1beta1.NodeRegistrationOptions{
+				InitConfiguration: &upstreamv1beta1.InitConfiguration{
+					NodeRegistration: upstreamv1beta1.NodeRegistrationOptions{
 						Name:             "{{ ds.meta_data.local_hostname }}",
 						KubeletExtraArgs: map[string]string{"cloud-provider": "aws"},
 					},
 				},
-				JoinConfiguration: &bootstrapv1beta1.JoinConfiguration{
-					NodeRegistration: bootstrapv1beta1.NodeRegistrationOptions{
+				JoinConfiguration: &upstreamv1beta1.JoinConfiguration{
+					NodeRegistration: upstreamv1beta1.NodeRegistrationOptions{
 						Name:             "{{ ds.meta_data.local_hostname }}",
 						KubeletExtraArgs: map[string]string{"cloud-provider": "aws"},
 					},
 				},
 			},
-			MachineTemplate: controlplanev1.KubeadmControlPlaneMachineTemplate{
-				InfrastructureRef: corev1.ObjectReference{
-					APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1",
-					Kind:       "AWSMachineTemplate",
-					Name:       clm.Name + "-control-plane",
-				},
+			InfrastructureTemplate: corev1.ObjectReference{
+				APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha3",
+				Kind:       "AWSMachineTemplate",
+				Name:       clm.Name + "-control-plane",
 			},
 			Replicas: &replicas,
 			Version:  string(clm.Spec.Version),
@@ -115,16 +114,16 @@ func (r *ClusterManagerReconciler) KubeadmControlPlaneForCluster(clm *clusterv1a
 	return kcp
 }
 
-func (r *ClusterManagerReconciler) AWSMachineTemplateForCluster(clm *clusterv1alpha1.ClusterManager, cluster *capiv1beta1.Cluster) *infrav1beta1.AWSMachineTemplate {
+func (r *ClusterManagerReconciler) AWSMachineTemplateForCluster(clm *clusterv1alpha1.ClusterManager, cluster *capiv1alpha3.Cluster) *infrav1alpha3.AWSMachineTemplate {
 
-	awsMt := &infrav1beta1.AWSMachineTemplate{
+	awsMt := &infrav1alpha3.AWSMachineTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clm.Name + "-control-plane",
 			Namespace: clm.Namespace,
 		},
-		Spec: infrav1beta1.AWSMachineTemplateSpec{
-			Template: infrav1beta1.AWSMachineTemplateResource{
-				Spec: infrav1beta1.AWSMachineSpec{
+		Spec: infrav1alpha3.AWSMachineTemplateSpec{
+			Template: infrav1alpha3.AWSMachineTemplateResource{
+				Spec: infrav1alpha3.AWSMachineSpec{
 					IAMInstanceProfile: "control-plane.cluster-api-provider-aws.sigs.k8s.io",
 					InstanceType:       clm.AWSSpec.MasterType,
 					SSHKeyName:         &clm.AWSSpec.SshKey,
@@ -137,29 +136,29 @@ func (r *ClusterManagerReconciler) AWSMachineTemplateForCluster(clm *clusterv1al
 }
 
 // MachineDeployment => AWSMachineTemplate, KubeadmConfigTemplate
-func (r *ClusterManagerReconciler) CreateMachineDeploymentForCAPI(clm *clusterv1alpha1.ClusterManager) *capiv1beta1.MachineDeployment {
+func (r *ClusterManagerReconciler) CreateMachineDeploymentForCAPI(clm *clusterv1alpha1.ClusterManager) *capiv1alpha3.MachineDeployment {
 	var replicas int32 = int32(clm.Spec.WorkerNum)
-	md := &capiv1beta1.MachineDeployment{
+	md := &capiv1alpha3.MachineDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clm.Name + "-md-0",
 			Namespace: clm.Namespace,
 		},
-		Spec: capiv1beta1.MachineDeploymentSpec{
+		Spec: capiv1alpha3.MachineDeploymentSpec{
 			ClusterName: clm.Name,
 			Replicas:    &replicas,
-			Template: capiv1beta1.MachineTemplateSpec{
-				Spec: capiv1beta1.MachineSpec{
+			Template: capiv1alpha3.MachineTemplateSpec{
+				Spec: capiv1alpha3.MachineSpec{
 					ClusterName: clm.Name,
 					Version:     &clm.Spec.Version,
-					Bootstrap: capiv1beta1.Bootstrap{
+					Bootstrap: capiv1alpha3.Bootstrap{
 						ConfigRef: &corev1.ObjectReference{
-							APIVersion: "bootstrap.cluster.x-k8s.io/v1beta1",
+							APIVersion: "bootstrap.cluster.x-k8s.io/v1alpha3",
 							Kind:       "KubeadmConfigTemplate",
 							Name:       clm.Name + "-md-0",
 						},
 					},
 					InfrastructureRef: corev1.ObjectReference{
-						APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1",
+						APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha3",
 						Kind:       "AWSMachineTemplate",
 						Name:       clm.Name + "-md-0",
 					},
@@ -170,16 +169,16 @@ func (r *ClusterManagerReconciler) CreateMachineDeploymentForCAPI(clm *clusterv1
 	return md
 }
 
-func (r *ClusterManagerReconciler) AWSMachineTemplateForMachineDeployment(clm *clusterv1alpha1.ClusterManager, machineDeployment *capiv1beta1.MachineDeployment) *infrav1beta1.AWSMachineTemplate {
+func (r *ClusterManagerReconciler) AWSMachineTemplateForMachineDeployment(clm *clusterv1alpha1.ClusterManager, machineDeployment *capiv1alpha3.MachineDeployment) *infrav1alpha3.AWSMachineTemplate {
 
-	awsMt := &infrav1beta1.AWSMachineTemplate{
+	awsMt := &infrav1alpha3.AWSMachineTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clm.Name + "-md-0",
 			Namespace: clm.Namespace,
 		},
-		Spec: infrav1beta1.AWSMachineTemplateSpec{
-			Template: infrav1beta1.AWSMachineTemplateResource{
-				Spec: infrav1beta1.AWSMachineSpec{
+		Spec: infrav1alpha3.AWSMachineTemplateSpec{
+			Template: infrav1alpha3.AWSMachineTemplateResource{
+				Spec: infrav1alpha3.AWSMachineSpec{
 					IAMInstanceProfile: "nodes.cluster-api-provider-aws.sigs.k8s.io",
 					InstanceType:       clm.AWSSpec.WorkerType,
 					SSHKeyName:         &clm.AWSSpec.SshKey,
@@ -191,18 +190,18 @@ func (r *ClusterManagerReconciler) AWSMachineTemplateForMachineDeployment(clm *c
 	return awsMt
 }
 
-func (r *ClusterManagerReconciler) KubeadmConfigTemplateForMachineDeployment(clm *clusterv1alpha1.ClusterManager, machineDeployment *capiv1beta1.MachineDeployment) *bootstrapv1beta1.KubeadmConfigTemplate {
+func (r *ClusterManagerReconciler) KubeadmConfigTemplateForMachineDeployment(clm *clusterv1alpha1.ClusterManager, machineDeployment *capiv1alpha3.MachineDeployment) *bootstrapv1alpha3.KubeadmConfigTemplate {
 
-	kct := &bootstrapv1beta1.KubeadmConfigTemplate{
+	kct := &bootstrapv1alpha3.KubeadmConfigTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clm.Name + "-md-0",
 			Namespace: clm.Namespace,
 		},
-		Spec: bootstrapv1beta1.KubeadmConfigTemplateSpec{
-			Template: bootstrapv1beta1.KubeadmConfigTemplateResource{
-				Spec: bootstrapv1beta1.KubeadmConfigSpec{
-					JoinConfiguration: &bootstrapv1beta1.JoinConfiguration{
-						NodeRegistration: bootstrapv1beta1.NodeRegistrationOptions{
+		Spec: bootstrapv1alpha3.KubeadmConfigTemplateSpec{
+			Template: bootstrapv1alpha3.KubeadmConfigTemplateResource{
+				Spec: bootstrapv1alpha3.KubeadmConfigSpec{
+					JoinConfiguration: &upstreamv1beta1.JoinConfiguration{
+						NodeRegistration: upstreamv1beta1.NodeRegistrationOptions{
 							KubeletExtraArgs: map[string]string{"cloud-provider": "aws"},
 							Name:             "{{ ds.meta_data.local_hostname }}",
 						},
