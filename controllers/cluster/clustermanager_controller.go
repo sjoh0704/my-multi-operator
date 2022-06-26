@@ -25,6 +25,7 @@ import (
 	"github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
 	clusterv1alpha1 "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
 	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -133,6 +134,10 @@ func (r *ClusterManagerReconciler) reconcile(ctx context.Context, clusterManager
 		// Cluster claim을 통해서 생성된 경우\
 
 		// TODO: CAPI는 임시로 사용하지 않음. 추후에 완벽하게 변경하자.
+		phases = append(phases,
+			r.SetEndpoint,
+			r.kubeadmControlPlaneUpdate,
+			r.machineDeploymentUpdate)
 		// phases = append(phases, r.CreateCluster)
 		// phases = append(phases, r.CreateMachineDeployment)
 	} else {
@@ -189,6 +194,26 @@ func (r *ClusterManagerReconciler) reconcileDelete(ctx context.Context, clusterM
 	return ctrl.Result{RequeueAfter: requeueAfter1Miniute}, nil
 }
 
+func (r *ClusterManagerReconciler) reconcilePhase(clusterManager *clusterv1alpha1.ClusterManager) {
+	if clusterManager.Status.Phase == "" {
+		if clusterManager.Labels[clusterv1alpha1.LabelKeyClmClusterType] == clusterv1alpha1.ClusterTypeRegistered {
+			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistering)
+		} else {
+			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistered)
+		}
+	}
+	if clusterManager.Status.Ready {
+		if clusterManager.Labels[clusterv1alpha1.LabelKeyClmClusterType] == clusterv1alpha1.ClusterTypeRegistered {
+			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistered)
+		} else {
+			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseProvisioned)
+		}
+	}
+	if !clusterManager.DeletionTimestamp.IsZero() {
+		clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseDeleting)
+	}
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	controller, err := ctrl.NewControllerManagedBy(mgr).
@@ -227,6 +252,7 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			},
 		}).Build(r)
 
+	// clusterclaim이 생성될 때 clustermanager를 생성
 	controller.Watch(
 		&source.Kind{Type: &v1alpha1.ClusterClaim{}},
 		handler.EnqueueRequestsFromMapFunc(r.requeueClusterManagerForClusterClaim),
@@ -258,27 +284,74 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			},
 		})
 
+	// capi cluster 업데이트시 clm의 controlplaneReady를 업데이트
+	controller.Watch(
+		&source.Kind{Type: &capiv1alpha3.Cluster{}},
+		handler.EnqueueRequestsFromMapFunc(r.requeueClusterManagersForCluster),
+		predicate.Funcs{
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				oldc := e.ObjectOld.(*capiv1alpha3.Cluster)
+				newc := e.ObjectNew.(*capiv1alpha3.Cluster)
+
+				return !oldc.Status.ControlPlaneInitialized && newc.Status.ControlPlaneInitialized
+			},
+			CreateFunc: func(e event.CreateEvent) bool {
+				return false
+			},
+			DeleteFunc: func(e event.DeleteEvent) bool {
+				return true
+			},
+			GenericFunc: func(e event.GenericEvent) bool {
+				return false
+			},
+		},
+	)
+
+	// capi kubeadmcontrolplane의 replicas 업데이트시 clm의 masterNodeRun을 업데이트
+	controller.Watch(
+		&source.Kind{Type: &controlplanev1.KubeadmControlPlane{}},
+		handler.EnqueueRequestsFromMapFunc(r.requeueClusterManagersForKubeadmControlPlane),
+		predicate.Funcs{
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				oldKcp := e.ObjectOld.(*controlplanev1.KubeadmControlPlane)
+				newKcp := e.ObjectNew.(*controlplanev1.KubeadmControlPlane)
+
+				return oldKcp.Status.Replicas != newKcp.Status.Replicas
+			},
+			CreateFunc: func(e event.CreateEvent) bool {
+				return true
+			},
+			DeleteFunc: func(e event.DeleteEvent) bool {
+				return false
+			},
+			GenericFunc: func(e event.GenericEvent) bool {
+				return false
+			},
+		},
+	)
+
+	// capi machinedeployment의 replicas 업데이트시 clm의 workerNodeRun을 업데이트
+	controller.Watch(
+		&source.Kind{Type: &capiv1alpha3.MachineDeployment{}},
+		handler.EnqueueRequestsFromMapFunc(r.requeueClusterManagersForMachineDeployment),
+		predicate.Funcs{
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				oldMd := e.ObjectOld.(*capiv1alpha3.MachineDeployment)
+				newMd := e.ObjectNew.(*capiv1alpha3.MachineDeployment)
+
+				return oldMd.Status.Replicas != newMd.Status.Replicas
+			},
+			CreateFunc: func(e event.CreateEvent) bool {
+				return true
+			},
+			DeleteFunc: func(e event.DeleteEvent) bool {
+				return false
+			},
+			GenericFunc: func(e event.GenericEvent) bool {
+				return false
+			},
+		},
+	)
+
 	return err
-}
-
-
-func (r *ClusterManagerReconciler) reconcilePhase(clusterManager *clusterv1alpha1.ClusterManager) {
-	if clusterManager.Status.Phase == "" {
-		if clusterManager.Labels[clusterv1alpha1.LabelKeyClmClusterType] == clusterv1alpha1.ClusterTypeRegistered {
-			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistering)
-		} else {
-			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistered)
-		}
-	}
-	if clusterManager.Status.Ready {
-		if clusterManager.Labels[clusterv1alpha1.LabelKeyClmClusterType] == clusterv1alpha1.ClusterTypeRegistered {
-			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseRegistered)
-		} else {
-			clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseProvisioned)
-		}
-	}
-	if !clusterManager.DeletionTimestamp.IsZero() {
-
-		clusterManager.Status.SetTypedPhase(clusterv1alpha1.ClusterManagerPhaseDeleting)
-	}
 }
