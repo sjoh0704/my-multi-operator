@@ -1,9 +1,9 @@
 apiVersion: claim.seung.com/v1alpha1
 kind: ClusterClaim
 metadata:
-  name: my-test-cc
+  name: test-cc
 spec:
-  clusterName: "sjoh0704"
+  clusterName: "test0704"
   version: "1.22.6"
   provider: "AWS"
   masterNum: 1

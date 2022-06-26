@@ -75,11 +75,6 @@ func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	log.Info("ClusterClaim 리소스를 찾았습니다.")
 
-	if clusterClaim.Status.Phase == "ClusterDeleted" {
-		log.Info("ClusterClaim의 Phase가 ClusterDeleted입니다.")
-		return ctrl.Result{}, nil
-	}
-
 	// AutoAdmit = true // 임시
 	if AutoAdmit == false {
 		if clusterClaim.Status.Phase == "" {
@@ -95,12 +90,14 @@ func (r *ClusterClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	// if AutoAdmit == true && clusterClaim.Status.Phase != "Approved" {
-	// 	clusterClaim.Status.Phase = "Approved"
-	// 	clusterClaim.Status.Reason = "임시 허용"
-	// 	r.Status().Update(ctx, clusterClaim)
-	// 	return ctrl.Result{Requeue: true}, nil
-	// }
+	if clusterClaim.Status.Phase == "Approved" { //seung
+		if err := r.CreateClusterManager(context.TODO(), clusterClaim); err != nil {
+			log.Error(err, "clustermanager를 생성하는데 에러가 발생했습니다.")
+			return ctrl.Result{Requeue: true}, nil
+		}
+
+		return ctrl.Result{}, nil
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -134,7 +131,7 @@ func (r *ClusterClaimReconciler) requeueClusterClaimForClusterManager(o client.O
 	cc.Status.Reason = "Cluster가 삭제되었습니다."
 
 	if err := r.Status().Update(context.TODO(), cc); err != nil {
-		log.Error(err, "ClusterClaim 상태를 변경하는데 실패했습니다.")
+		log.Error(err, "ClusterClaim 상태를 업데이트하는데 실패했습니다.")
 		return nil
 	}
 	return nil
@@ -151,7 +148,13 @@ func (r *ClusterClaimReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					return true
 				},
 				UpdateFunc: func(ue event.UpdateEvent) bool {
-					return true
+					//seung: clusterclaim이 approved상태로 변경되었을 때 clm 생성 reconcile
+					oldCc := ue.ObjectOld.(*v1alpha1Claim.ClusterClaim)
+					newCc := ue.ObjectNew.(*v1alpha1Claim.ClusterClaim)
+					if oldCc.Status.Phase != "Approved" && newCc.Status.Phase == "Approved" {
+						return true
+					}
+					return false
 				},
 				DeleteFunc: func(de event.DeleteEvent) bool {
 					return false
@@ -167,6 +170,7 @@ func (r *ClusterClaimReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
+	// clm을 watch, clm이 삭제되면 clusterclaim의 phase를 deleted로 변경
 	return controller.Watch(
 		&source.Kind{Type: &v1alpha1Cluster.ClusterManager{}},
 		handler.EnqueueRequestsFromMapFunc(r.requeueClusterClaimForClusterManager),

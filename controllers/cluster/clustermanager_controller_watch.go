@@ -15,84 +15,19 @@ limitations under the License.
 package cluster
 
 import (
-	// "fmt"
-
 	"context"
-	"os"
 	"strings"
 
-	v1alpha1claim "github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
 	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
 
 	clusterv1alpha1 "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-// 내가 만든 메서드 => clusterclaim 생성되면 clustermanager를 생성
-func (r *ClusterManagerReconciler) requeueClusterManagerForClusterClaim(o client.Object) []ctrl.Request {
-	cc := o.DeepCopyObject().(*v1alpha1claim.ClusterClaim)
-	log := r.Log.WithValues("objectMapper", "claimToClusterManager", "namespace", cc.Namespace, cc.Kind, cc.Name)
-
-	key := types.NamespacedName{
-		Name:      cc.Spec.ClusterName,
-		Namespace: cc.Namespace,
-	}
-	clm := new(clusterv1alpha1.ClusterManager)
-	err := r.Get(context.TODO(), key, clm)
-	if errors.IsNotFound(err) {
-		log.Info("clustermanager 리소스가 없습니다. clustermanager가 생성됩니다.")
-		newClusterManager := &clusterv1alpha1.ClusterManager{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      cc.Spec.ClusterName,
-				Namespace: cc.Namespace,
-				Labels: map[string]string{
-					clusterv1alpha1.LabelKeyClmClusterType: clusterv1alpha1.ClusterTypeCreated,
-					clusterv1alpha1.LabelKeyClcName:        cc.Name,
-				},
-				Annotations: map[string]string{
-					// TODO 수정
-					"owner":                                "creator",
-					"creator":                              "creator",
-					clusterv1alpha1.AnnotationKeyClmDomain: os.Getenv("HC_DOMAIN"),
-				},
-			},
-			Spec: clusterv1alpha1.ClusterManagerSpec{
-				Provider:  cc.Spec.Provider,
-				Version:   cc.Spec.Version,
-				MasterNum: cc.Spec.MasterNum,
-				WorkerNum: cc.Spec.WorkerNum,
-			},
-			AWSSpec: clusterv1alpha1.ProviderAWSSpec{
-				Region:     cc.Spec.ProviderAwsSpec.Region,
-				SshKey:     cc.Spec.ProviderAwsSpec.SshKey,
-				MasterType: cc.Spec.ProviderAwsSpec.MasterType,
-				WorkerType: cc.Spec.ProviderAwsSpec.WorkerType,
-			},
-		}
-
-		if err := r.Create(context.TODO(), newClusterManager); err != nil {
-			log.Error(err, "clustermanager 생성에 실패했습니다.")
-			return nil
-		}
-
-	} else if err != nil {
-		log.Error(err, "clustermanager를 가져오는데 에러가 발생하였습니다.")
-		return nil
-	} else { // update를 하는 경우
-		//TODO 추가필요
-
-		clm.Spec.MasterNum = cc.Spec.MasterNum
-		clm.Spec.WorkerNum = cc.Spec.WorkerNum
-		r.Update(context.TODO(), clm)
-	}
-	return nil
-}
 
 // cluster를 watch 후, clm의 controlplaneready를 update
 func (r *ClusterManagerReconciler) requeueClusterManagersForCluster(o client.Object) []ctrl.Request {

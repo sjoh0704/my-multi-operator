@@ -18,11 +18,9 @@ package cluster
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
 	clusterv1alpha1 "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
 	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
@@ -232,7 +230,6 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				// 삭제되기 위해 deletionTimeStamp가 달리는 경우 (O)
 				// controlplane endpoint가 업데이트 되는 경우
 				// 하위 리소스가 not ready가 되는 경우
-				fmt.Println("update!!!")
 				oldClm := ue.ObjectOld.(*clusterv1alpha1.ClusterManager)
 				newClm := ue.ObjectNew.(*clusterv1alpha1.ClusterManager)
 
@@ -251,38 +248,6 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return false
 			},
 		}).Build(r)
-
-	// clusterclaim이 생성될 때 clustermanager를 생성
-	controller.Watch(
-		&source.Kind{Type: &v1alpha1.ClusterClaim{}},
-		handler.EnqueueRequestsFromMapFunc(r.requeueClusterManagerForClusterClaim),
-		predicate.Funcs{
-			UpdateFunc: func(ue event.UpdateEvent) bool {
-
-				ccNew := ue.ObjectNew.(*v1alpha1.ClusterClaim)
-				if ccNew.Status.Phase == "Approved" {
-					return true
-				} else {
-					return false
-				}
-				// TODO 업데이트 허용?
-			},
-			CreateFunc: func(ce event.CreateEvent) bool {
-				cc := ce.Object.(*v1alpha1.ClusterClaim)
-
-				if cc.Status.Phase == "Approved" {
-					return true
-				} else {
-					return false
-				}
-			},
-			DeleteFunc: func(de event.DeleteEvent) bool {
-				return false
-			},
-			GenericFunc: func(ge event.GenericEvent) bool {
-				return false
-			},
-		})
 
 	// capi cluster 업데이트시 clm의 controlplaneReady를 업데이트
 	controller.Watch(
