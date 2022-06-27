@@ -31,7 +31,7 @@ func (r *ClusterManagerReconciler) UpdateClusterManagerStatus(ctx context.Contex
 
 	kubeconfigSecret, err := r.GetKubeConfigSecret(clusterManager)
 	if err != nil {
-		log.Error(err, "kubeconfig secret을 가져오는데 실패하였습니다.")
+		//seung log.error를 없애는게 더 나은듯
 		return ctrl.Result{RequeueAfter: requeueAfter10Seconds}, nil
 	}
 
@@ -49,7 +49,7 @@ func (r *ClusterManagerReconciler) UpdateClusterManagerStatus(ctx context.Contex
 		ConfigMaps(util.KubeNamespace).
 		Get(context.TODO(), "kubeadm-config", metav1.GetOptions{})
 	if err != nil {
-		log.Error(err, "Failed to get kubeadm-config configmap from remote cluster")
+		log.Error(err, "생성된 remote Cluster로부터 kubeadm-config를 가져오는데 실패했습니다.")
 		return ctrl.Result{}, err
 	}
 

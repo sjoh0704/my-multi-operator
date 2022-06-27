@@ -5,6 +5,7 @@ import (
 	"os"
 
 	claimv1alpha1 "github.com/sjoh0704/my-multi-operator/apis/claim/v1alpha1"
+	"github.com/sjoh0704/my-multi-operator/controllers/util"
 
 	clusterv1alpha1 "github.com/sjoh0704/my-multi-operator/apis/cluster/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -33,9 +34,9 @@ func (r *ClusterClaimReconciler) CreateClusterManager(ctx context.Context, cc *c
 					clusterv1alpha1.LabelKeyClcName:        cc.Name,
 				},
 				Annotations: map[string]string{
-					// TODO 수정
-					"owner":                                "creator",
-					"creator":                              "creator",
+					// seung - 다른 컴포넌트가 달아주나?
+					"owner":                                cc.Annotations[util.AnnotationKeyOwner],
+					"creator":                              cc.Annotations[util.AnnotationKeyCreator],
 					clusterv1alpha1.AnnotationKeyClmDomain: os.Getenv("HC_DOMAIN"),
 				},
 			},

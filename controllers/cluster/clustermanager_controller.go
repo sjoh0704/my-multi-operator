@@ -133,11 +133,11 @@ func (r *ClusterManagerReconciler) reconcile(ctx context.Context, clusterManager
 
 		// TODO: CAPI는 임시로 사용하지 않음. 추후에 완벽하게 변경하자.
 		phases = append(phases,
+			r.CreateCluster,
+			r.CreateMachineDeployment,
 			r.SetEndpoint,
 			r.kubeadmControlPlaneUpdate,
 			r.machineDeploymentUpdate)
-		// phases = append(phases, r.CreateCluster)
-		// phases = append(phases, r.CreateMachineDeployment)
 	} else {
 		// cluster registration을 통해서 생성된 경우
 		// 현재는 cluster registration을 사용하지 않음
@@ -170,9 +170,10 @@ func (r *ClusterManagerReconciler) reconcileDelete(ctx context.Context, clusterM
 
 	// 여러가지 요소들 삭제 작업
 
-	// delete clustermanager
+	//seung - delete cluster
 	key := clusterManager.GetNamespacedName()
-	if err := r.Get(context.TODO(), key, &capiv1alpha3.Cluster{}); errors.IsNotFound(err) {
+	cluster := &capiv1alpha3.Cluster{}
+	if err := r.Get(context.TODO(), key, cluster); errors.IsNotFound(err) {
 		// cluster가 삭제된 후, finalizer를 지우는 작업
 		// if err := util.Delete(clusterManager.Namespace, clusterv1alpha1.ClusterManagerFinalizer); err != nil {
 		// 	log.Error(err, "clustermanager를 삭제하는데 실패")
@@ -181,10 +182,16 @@ func (r *ClusterManagerReconciler) reconcileDelete(ctx context.Context, clusterM
 		// 하지만 API 서버에 전달 및 이외의 다른 여러가지 변경 사항은 확인을 해봐야 할 듯함
 		controllerutil.RemoveFinalizer(clusterManager, clusterv1alpha1.ClusterManagerFinalizer)
 		log.Info("clusterManager를 삭제합니다.")
-		return ctrl.Result{}, nil // 최종 끝나는 지점
+		return ctrl.Result{}, nil
 	} else if err != nil {
 		log.Error(err, "cluster를 가져오는데 실패")
 		return ctrl.Result{}, nil
+	}
+
+	//seung- cluster를 삭제
+	if err := r.Delete(context.TODO(), cluster); err != nil {
+		log.Error(err, "cluster를 삭제하는데 문제가 발생했습니다.")
+		return ctrl.Result{RequeueAfter: requeueAfter1Miniute}, nil
 	}
 
 	log.Info("cluster를 삭제하는 중. 1분뒤에 requeue됩니다.")
@@ -237,8 +244,10 @@ func (r *ClusterManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					controllerutil.ContainsFinalizer(newClm, clusterv1alpha1.ClusterManagerFinalizer)
 				isDeleted := oldClm.DeletionTimestamp.IsZero() &&
 					!newClm.DeletionTimestamp.IsZero()
+				isControlplaneEndpointUpdate := oldClm.Status.ControlPlaneEndpoint == "" &&
+					newClm.Status.ControlPlaneEndpoint != ""
 
-				if isDeleted || isFinalized {
+				if isDeleted || isControlplaneEndpointUpdate || isFinalized {
 					return true
 				} else {
 					return false

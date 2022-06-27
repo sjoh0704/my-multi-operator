@@ -11,5 +11,5 @@ spec:
   providerAwsSpec:
     sshKey: "aws-keypair"
     region: "ap-northeast-2"
-    masterType: "t3.micro"
-    workerType: "t3.micro"
+    masterType: "t3.small"
+    workerType: "t3.small"

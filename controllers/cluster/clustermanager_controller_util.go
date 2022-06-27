@@ -23,7 +23,7 @@ func (r *ClusterManagerReconciler) GetKubeConfigSecret(clusterManager *clusterv1
 	kubeconfigSecret := &corev1.Secret{}
 	err := r.Get(context.TODO(), key, kubeconfigSecret)
 	if errors.IsNotFound(err) {
-		log.Info("kubeconfig secret이 없습니다. 아마 생성 중일듯합니다.")
+		log.Info("kubeconfig secret가 생성중입니다. 기다려 주세요.")
 		return nil, err
 	} else if err != nil {
 		log.Error(err, "kubeconfig secret을 가져오는데 에러가 발생하였습니다.")
